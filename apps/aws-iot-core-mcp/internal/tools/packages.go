@@ -11,21 +11,21 @@ import (
 )
 
 type ListPackagesArgs struct {
-	MaxResults int32 `json:"max_results,omitempty" jsonschema:"description=Maximum number of packages to return (default 25)"`
+	MaxResults int32 `json:"max_results,omitempty" jsonschema:"description:Maximum number of packages to return (default 25)"`
 }
 
 type GetPackageArgs struct {
-	PackageName string `json:"package_name" jsonschema:"description=The name of the IoT software package"`
+	PackageName string `json:"package_name" jsonschema:"description:The name of the IoT software package"`
 }
 
 type ListPackageVersionsArgs struct {
-	PackageName string `json:"package_name" jsonschema:"description=The name of the IoT software package"`
-	MaxResults  int32  `json:"max_results,omitempty" jsonschema:"description=Maximum number of versions to return (default 25)"`
+	PackageName string `json:"package_name" jsonschema:"description:The name of the IoT software package"`
+	MaxResults  int32  `json:"max_results,omitempty" jsonschema:"description:Maximum number of versions to return (default 25)"`
 }
 
 type GetPackageVersionArgs struct {
-	PackageName string `json:"package_name" jsonschema:"description=The name of the IoT software package"`
-	VersionName string `json:"version_name" jsonschema:"description=The version name to retrieve"`
+	PackageName string `json:"package_name" jsonschema:"description:The name of the IoT software package"`
+	VersionName string `json:"version_name" jsonschema:"description:The version name to retrieve"`
 }
 
 func RegisterPackages(server *mcp.Server, clients *awsclients.Clients) {

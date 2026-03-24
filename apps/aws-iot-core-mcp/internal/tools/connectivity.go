@@ -12,7 +12,7 @@ import (
 )
 
 type GetConnectivityArgs struct {
-	ThingName string `json:"thing_name" jsonschema:"description=The name of the IoT Thing to check connectivity for"`
+	ThingName string `json:"thing_name" jsonschema:"description:The name of the IoT Thing to check connectivity for"`
 }
 
 func RegisterConnectivity(server *mcp.Server, clients *awsclients.Clients) {

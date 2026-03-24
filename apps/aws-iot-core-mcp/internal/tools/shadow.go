@@ -12,18 +12,18 @@ import (
 )
 
 type GetShadowArgs struct {
-	ThingName  string `json:"thing_name" jsonschema:"description=The name of the IoT Thing"`
-	ShadowName string `json:"shadow_name,omitempty" jsonschema:"description=Named shadow name (leave empty for classic shadow)"`
+	ThingName  string `json:"thing_name" jsonschema:"description:The name of the IoT Thing"`
+	ShadowName string `json:"shadow_name,omitempty" jsonschema:"description:Named shadow name (leave empty for classic shadow)"`
 }
 
 type UpdateShadowArgs struct {
-	ThingName  string `json:"thing_name" jsonschema:"description=The name of the IoT Thing"`
-	ShadowName string `json:"shadow_name,omitempty" jsonschema:"description=Named shadow name (leave empty for classic shadow)"`
-	Desired    string `json:"desired" jsonschema:"description=JSON object for the desired state to set"`
+	ThingName  string `json:"thing_name" jsonschema:"description:The name of the IoT Thing"`
+	ShadowName string `json:"shadow_name,omitempty" jsonschema:"description:Named shadow name (leave empty for classic shadow)"`
+	Desired    string `json:"desired" jsonschema:"description:JSON object for the desired state to set"`
 }
 
 type ListShadowsArgs struct {
-	ThingName string `json:"thing_name" jsonschema:"description=The name of the IoT Thing"`
+	ThingName string `json:"thing_name" jsonschema:"description:The name of the IoT Thing"`
 }
 
 func RegisterShadow(server *mcp.Server, clients *awsclients.Clients) {

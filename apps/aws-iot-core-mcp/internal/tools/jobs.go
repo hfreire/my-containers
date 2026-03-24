@@ -12,29 +12,29 @@ import (
 )
 
 type ListJobsArgs struct {
-	MaxResults int32  `json:"max_results,omitempty" jsonschema:"description=Maximum number of jobs to return (default 25)"`
-	Status     string `json:"status,omitempty" jsonschema:"description=Filter by job status: IN_PROGRESS CANCELED COMPLETED DELETION_IN_PROGRESS SCHEDULED"`
+	MaxResults int32  `json:"max_results,omitempty" jsonschema:"description:Maximum number of jobs to return (default 25)"`
+	Status     string `json:"status,omitempty" jsonschema:"description:Filter by job status: IN_PROGRESS CANCELED COMPLETED DELETION_IN_PROGRESS SCHEDULED"`
 }
 
 type DescribeJobArgs struct {
-	JobID string `json:"job_id" jsonschema:"description=The unique identifier of the job"`
+	JobID string `json:"job_id" jsonschema:"description:The unique identifier of the job"`
 }
 
 type ListJobExecutionsForJobArgs struct {
-	JobID      string `json:"job_id" jsonschema:"description=The unique identifier of the job"`
-	MaxResults int32  `json:"max_results,omitempty" jsonschema:"description=Maximum number of executions to return (default 25)"`
-	Status     string `json:"status,omitempty" jsonschema:"description=Filter by execution status: QUEUED IN_PROGRESS SUCCEEDED FAILED TIMED_OUT REJECTED REMOVED CANCELED"`
+	JobID      string `json:"job_id" jsonschema:"description:The unique identifier of the job"`
+	MaxResults int32  `json:"max_results,omitempty" jsonschema:"description:Maximum number of executions to return (default 25)"`
+	Status     string `json:"status,omitempty" jsonschema:"description:Filter by execution status: QUEUED IN_PROGRESS SUCCEEDED FAILED TIMED_OUT REJECTED REMOVED CANCELED"`
 }
 
 type ListJobExecutionsForThingArgs struct {
-	ThingName  string `json:"thing_name" jsonschema:"description=The name of the IoT Thing"`
-	MaxResults int32  `json:"max_results,omitempty" jsonschema:"description=Maximum number of executions to return (default 25)"`
-	Status     string `json:"status,omitempty" jsonschema:"description=Filter by execution status: QUEUED IN_PROGRESS SUCCEEDED FAILED TIMED_OUT REJECTED REMOVED CANCELED"`
+	ThingName  string `json:"thing_name" jsonschema:"description:The name of the IoT Thing"`
+	MaxResults int32  `json:"max_results,omitempty" jsonschema:"description:Maximum number of executions to return (default 25)"`
+	Status     string `json:"status,omitempty" jsonschema:"description:Filter by execution status: QUEUED IN_PROGRESS SUCCEEDED FAILED TIMED_OUT REJECTED REMOVED CANCELED"`
 }
 
 type DescribeJobExecutionArgs struct {
-	JobID     string `json:"job_id" jsonschema:"description=The unique identifier of the job"`
-	ThingName string `json:"thing_name" jsonschema:"description=The name of the IoT Thing"`
+	JobID     string `json:"job_id" jsonschema:"description:The unique identifier of the job"`
+	ThingName string `json:"thing_name" jsonschema:"description:The name of the IoT Thing"`
 }
 
 func RegisterJobs(server *mcp.Server, clients *awsclients.Clients) {
