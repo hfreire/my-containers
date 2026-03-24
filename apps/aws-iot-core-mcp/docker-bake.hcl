@@ -4,7 +4,7 @@ variable "VERSION" {
 }
 
 variable "REGISTRY" {
-  default = "ghcr.io/hfreire"
+  default = "ghcr.io/hfreire/my-containers"
 }
 
 group "default" {
