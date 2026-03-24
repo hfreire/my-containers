@@ -1,0 +1,76 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "IoTConnectivity",
+      "Effect": "Allow",
+      "Action": [
+        "iot:SearchIndex"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IoTShadow",
+      "Effect": "Allow",
+      "Action": [
+        "iot:GetThingShadow",
+        "iot:UpdateThingShadow",
+        "iot:ListNamedShadowsForThing"
+      ],
+      "Resource": "arn:aws:iot:*:*:thing/*"
+    },
+    {
+      "Sid": "IoTPackages",
+      "Effect": "Allow",
+      "Action": [
+        "iot:ListPackages",
+        "iot:GetPackage",
+        "iot:ListPackageVersions",
+        "iot:GetPackageVersion"
+      ],
+      "Resource": [
+        "arn:aws:iot:*:*:package/*",
+        "arn:aws:iot:*:*:package/*/*/*"
+      ]
+    },
+    {
+      "Sid": "IoTPackagesList",
+      "Effect": "Allow",
+      "Action": [
+        "iot:ListPackages"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IoTJobs",
+      "Effect": "Allow",
+      "Action": [
+        "iot:ListJobs",
+        "iot:DescribeJob",
+        "iot:ListJobExecutionsForJob",
+        "iot:ListJobExecutionsForThing",
+        "iot:DescribeJobExecution"
+      ],
+      "Resource": [
+        "arn:aws:iot:*:*:job/*",
+        "arn:aws:iot:*:*:thing/*"
+      ]
+    },
+    {
+      "Sid": "IoTJobsList",
+      "Effect": "Allow",
+      "Action": [
+        "iot:ListJobs"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IoTEndpoint",
+      "Effect": "Allow",
+      "Action": [
+        "iot:DescribeEndpoint"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
