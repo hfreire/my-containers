@@ -17,64 +17,89 @@ interface A2APart {
 }
 
 interface A2AMessage {
-  role: "user";
-  parts: Array<{ kind: "text"; text: string }>;
+  role: "user" | "agent";
+  parts: A2APart[];
+  messageId?: string;
   contextId?: string;
+  taskId?: string;
 }
 
 interface A2ARequest {
   jsonrpc: "2.0";
   id: string;
-  method: "message/send";
+  method: "message/send" | "message/stream";
   params: {
     message: A2AMessage;
+    configuration?: {
+      blocking?: boolean;
+    };
+    metadata?: Record<string, unknown>;
   };
+}
+
+// A2A v0.3.0: response result can be a Task (kind: "task") or Message (kind: "message")
+interface A2ATaskResult {
+  kind: "task";
+  id: string;
+  contextId?: string;
+  status?: {
+    state: string;
+    timestamp?: string;
+    message?: A2AMessage;
+  };
+  artifacts?: Array<{
+    artifactId?: string;
+    parts: A2APart[];
+  }>;
+  history?: A2AMessage[];
+  metadata?: Record<string, unknown>;
+}
+
+interface A2AMessageResult {
+  kind: "message";
+  messageId?: string;
+  contextId?: string;
+  role: "agent";
+  parts: A2APart[];
+  metadata?: Record<string, unknown>;
 }
 
 interface A2AResponse {
   jsonrpc: "2.0";
   id: string;
-  result?: {
-    artifacts?: Array<{ parts: A2APart[] }>;
-    contextId?: string;
-    status?: {
-      state: string;
-      message?: {
-        parts: A2APart[];
-      };
-    };
-    history?: Array<{
-      role: string;
-      parts: A2APart[];
-    }>;
-  };
+  result?: A2ATaskResult | A2AMessageResult;
   error?: {
     code: number;
     message: string;
+    data?: unknown;
   };
 }
 
 export async function sendToAgent(
   text: string,
-  conversationId?: string
+  contextId?: string
 ): Promise<AgentResponse> {
   const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}/`;
   const requestId = crypto.randomUUID();
 
   const message: A2AMessage = {
     role: "user",
+    messageId: crypto.randomUUID(),
     parts: [{ kind: "text", text }],
   };
 
-  if (conversationId) {
-    message.contextId = conversationId;
+  if (contextId) {
+    message.contextId = contextId;
   }
 
   const body: A2ARequest = {
     jsonrpc: "2.0",
     id: requestId,
     method: "message/send",
-    params: { message },
+    params: {
+      message,
+      configuration: { blocking: true },
+    },
   };
 
   const response = await fetch(url, {
@@ -85,9 +110,9 @@ export async function sendToAgent(
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
+    const responseBody = await response.text().catch(() => "");
     throw new Error(
-      `A2A request failed: ${response.status} ${response.statusText} ${body}`
+      `A2A request failed: ${response.status} ${response.statusText} ${responseBody}`
     );
   }
 
@@ -97,66 +122,91 @@ export async function sendToAgent(
     throw new Error(`A2A error: ${data.error.message}`);
   }
 
-  const responseText = extractText(data);
-
   return {
-    text: responseText || "No response from agent.",
+    text: extractText(data) || "No response from agent.",
     conversationId: data.result?.contextId,
   };
 }
 
 function extractText(data: A2AResponse): string {
-  // Try artifacts first (kagent format)
-  const artifacts = data.result?.artifacts ?? [];
-  for (const artifact of artifacts) {
-    const texts = artifact.parts
-      .filter((p) => p.kind === "text" && p.text)
-      .map((p) => p.text!);
-    if (texts.length > 0) return texts.join("\n");
+  const result = data.result;
+  if (!result) return "";
+
+  // A2A v0.3.0: handle Message result directly (kind: "message")
+  if (result.kind === "message") {
+    const msg = result as A2AMessageResult;
+    return extractPartsText(msg.parts);
   }
 
-  // Fall back to status.message.parts (standard A2A)
-  const parts = data.result?.status?.message?.parts ?? [];
-  const texts = parts
-    .filter((p) => p.kind === "text" && p.text)
-    .map((p) => p.text!);
-  if (texts.length > 0) return texts.join("\n");
+  // A2A v0.3.0: handle Task result (kind: "task")
+  if (result.kind === "task") {
+    const task = result as A2ATaskResult;
 
-  // Fall back to last agent message in history
-  const history = data.result?.history ?? [];
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === "agent") {
-      const agentTexts = history[i].parts
-        .filter((p) => p.kind === "text" && p.text)
-        .map((p) => p.text!);
-      if (agentTexts.length > 0) return agentTexts.join("\n");
+    // Try artifacts first
+    for (const artifact of task.artifacts ?? []) {
+      const text = extractPartsText(artifact.parts);
+      if (text) return text;
     }
+
+    // Try status message
+    if (task.status?.message) {
+      const text = extractPartsText(task.status.message.parts);
+      if (text) return text;
+    }
+
+    // Fall back to last agent message in history
+    for (let i = (task.history ?? []).length - 1; i >= 0; i--) {
+      if (task.history![i].role === "agent") {
+        const text = extractPartsText(task.history![i].parts);
+        if (text) return text;
+      }
+    }
+  }
+
+  // Fallback for responses without kind field (pre-v0.3.0 compat)
+  const anyResult = result as any;
+  for (const artifact of anyResult.artifacts ?? []) {
+    const text = extractPartsText(artifact.parts ?? []);
+    if (text) return text;
+  }
+  if (anyResult.parts) {
+    const text = extractPartsText(anyResult.parts);
+    if (text) return text;
   }
 
   return "";
 }
 
+function extractPartsText(parts: A2APart[]): string {
+  return parts
+    .filter((p) => p.kind === "text" && p.text)
+    .map((p) => p.text!)
+    .join("\n");
+}
+
 export async function streamToAgent(
   text: string,
-  conversationId: string | undefined,
+  contextId: string | undefined,
   onChunk: (text: string) => void
 ): Promise<AgentResponse> {
   const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}/`;
   const requestId = crypto.randomUUID();
 
-  const body = {
+  const message: A2AMessage = {
+    role: "user",
+    messageId: crypto.randomUUID(),
+    parts: [{ kind: "text", text }],
+  };
+
+  if (contextId) {
+    message.contextId = contextId;
+  }
+
+  const body: A2ARequest = {
     jsonrpc: "2.0",
     id: requestId,
     method: "message/stream",
-    params: {
-      message: {
-        role: "user",
-        parts: [{ kind: "text", text }],
-      },
-      ...(conversationId && {
-        configuration: { conversationId },
-      }),
-    },
+    params: { message },
   };
 
   const response = await fetch(url, {
@@ -170,13 +220,14 @@ export async function streamToAgent(
   });
 
   if (!response.ok) {
+    const responseBody = await response.text().catch(() => "");
     throw new Error(
-      `A2A stream request failed: ${response.status} ${response.statusText}`
+      `A2A stream request failed: ${response.status} ${response.statusText} ${responseBody}`
     );
   }
 
   let fullText = "";
-  let resultConversationId: string | undefined;
+  let resultContextId: string | undefined;
 
   const reader = response.body?.getReader();
   if (!reader) throw new Error("No response body");
@@ -194,20 +245,18 @@ export async function streamToAgent(
 
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
-      const data = line.slice(6);
-      if (data === "[DONE]") continue;
+      const eventData = line.slice(6);
+      if (eventData === "[DONE]") continue;
 
       try {
-        const event = JSON.parse(data);
-        const parts = event.result?.status?.message?.parts ?? [];
-        for (const part of parts) {
-          if (part.kind === "text" && part.text) {
-            fullText += part.text;
-            onChunk(part.text);
-          }
+        const event = JSON.parse(eventData) as A2AResponse;
+        const text = extractText(event);
+        if (text) {
+          fullText += text;
+          onChunk(text);
         }
-        if (event.result?.conversationId) {
-          resultConversationId = event.result.conversationId;
+        if (event.result?.contextId) {
+          resultContextId = event.result.contextId;
         }
       } catch {
         // Skip malformed SSE data
@@ -217,6 +266,6 @@ export async function streamToAgent(
 
   return {
     text: fullText || "No response from agent.",
-    conversationId: resultConversationId,
+    conversationId: resultContextId,
   };
 }
