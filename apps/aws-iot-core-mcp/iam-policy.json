@@ -71,6 +71,30 @@
         "iot:DescribeEndpoint"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "IoTMQTTConnect",
+      "Effect": "Allow",
+      "Action": [
+        "iot:Connect"
+      ],
+      "Resource": "arn:aws:iot:*:*:client/aws-iot-mcp-*"
+    },
+    {
+      "Sid": "IoTMQTTSubscribe",
+      "Effect": "Allow",
+      "Action": [
+        "iot:Subscribe"
+      ],
+      "Resource": "arn:aws:iot:*:*:topicfilter/*"
+    },
+    {
+      "Sid": "IoTMQTTReceive",
+      "Effect": "Allow",
+      "Action": [
+        "iot:Receive"
+      ],
+      "Resource": "arn:aws:iot:*:*:topic/*"
     }
   ]
 }

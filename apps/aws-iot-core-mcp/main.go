@@ -37,6 +37,7 @@ func main() {
 		tools.RegisterShadow(server, clients)
 		tools.RegisterPackages(server, clients)
 		tools.RegisterJobs(server, clients)
+		tools.RegisterMQTT(server, clients)
 
 		return server
 	}

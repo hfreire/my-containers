@@ -16,6 +16,8 @@ import (
 type Clients struct {
 	IoT          *iot.Client
 	IoTDataPlane *iotdataplane.Client
+	Cfg          aws.Config
+	IoTEndpoint  string
 }
 
 func NewClients(ctx context.Context) (*Clients, error) {
@@ -42,6 +44,8 @@ func NewClients(ctx context.Context) (*Clients, error) {
 	return &Clients{
 		IoT:          iotClient,
 		IoTDataPlane: dpClient,
+		Cfg:          cfg,
+		IoTEndpoint:  *ep.EndpointAddress,
 	}, nil
 }
 
