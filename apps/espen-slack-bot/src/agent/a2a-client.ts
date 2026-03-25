@@ -16,16 +16,18 @@ interface A2APart {
   text?: string;
 }
 
+interface A2AMessage {
+  role: "user";
+  parts: Array<{ kind: "text"; text: string }>;
+  contextId?: string;
+}
+
 interface A2ARequest {
   jsonrpc: "2.0";
   id: string;
   method: "message/send";
   params: {
-    message: {
-      role: "user";
-      parts: Array<{ kind: "text"; text: string }>;
-    };
-    contextId?: string;
+    message: A2AMessage;
   };
 }
 
@@ -59,21 +61,21 @@ export async function sendToAgent(
   const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}/`;
   const requestId = crypto.randomUUID();
 
+  const message: A2AMessage = {
+    role: "user",
+    parts: [{ kind: "text", text }],
+  };
+
+  if (conversationId) {
+    message.contextId = conversationId;
+  }
+
   const body: A2ARequest = {
     jsonrpc: "2.0",
     id: requestId,
     method: "message/send",
-    params: {
-      message: {
-        role: "user",
-        parts: [{ kind: "text", text }],
-      },
-    },
+    params: { message },
   };
-
-  if (conversationId) {
-    body.params.contextId = conversationId;
-  }
 
   const response = await fetch(url, {
     method: "POST",

@@ -1,56 +1,14 @@
 import type { App } from "@slack/bolt";
 import { sendToAgent } from "../agent/a2a-client.js";
+import { getConversationId, setConversationId } from "../state/threads.js";
 import { formatAgentResponse } from "../formatters/blocks.js";
-
-async function getThreadHistory(
-  client: any,
-  channel: string,
-  threadTs: string,
-  botUserId: string
-): Promise<string> {
-  try {
-    const result = await client.conversations.replies({
-      channel,
-      ts: threadTs,
-      limit: 50,
-    });
-
-    const messages = result.messages ?? [];
-    if (messages.length <= 1) return "";
-
-    // Build conversation history (skip the latest message — that's the current one)
-    const history = messages
-      .slice(0, -1)
-      .map((msg: any) => {
-        const role = msg.user === botUserId ? "assistant" : "user";
-        const text = (msg.text ?? "")
-          .replace(/<@[A-Z0-9]+>/gi, "")
-          .trim();
-        if (!text) return null;
-        return `[${role}]: ${text}`;
-      })
-      .filter(Boolean);
-
-    if (history.length === 0) return "";
-
-    return (
-      "<conversation_history>\n" +
-      history.join("\n") +
-      "\n</conversation_history>\n\n"
-    );
-  } catch {
-    return "";
-  }
-}
 
 async function handleUserMessage(
   text: string,
   channel: string,
   threadTs: string,
-  isThread: boolean,
   client: any,
-  logger: any,
-  botUserId: string
+  logger: any
 ) {
   if (!text.trim()) return;
 
@@ -61,21 +19,15 @@ async function handleUserMessage(
       text: "🔍 Looking into this...",
     });
 
-    // For thread follow-ups, prepend conversation history
-    let prompt = text.trim();
-    if (isThread) {
-      const history = await getThreadHistory(
-        client,
-        channel,
-        threadTs,
-        botUserId
-      );
-      if (history) {
-        prompt = history + prompt;
-      }
-    }
+    // Look up existing contextId for this thread
+    const contextId = await getConversationId(threadTs);
 
-    const response = await sendToAgent(prompt);
+    const response = await sendToAgent(text.trim(), contextId);
+
+    // Store contextId for follow-ups
+    if (response.conversationId) {
+      await setConversationId(threadTs, response.conversationId);
+    }
 
     if (thinking.ts) {
       await client.chat.update({
@@ -97,7 +49,6 @@ async function handleUserMessage(
 export function registerMessageListeners(app: App) {
   let botUserId = "";
 
-  // Resolve bot user ID on first event
   async function getBotUserId(client: any): Promise<string> {
     if (botUserId) return botUserId;
     try {
@@ -113,17 +64,7 @@ export function registerMessageListeners(app: App) {
   app.event("app_mention", async ({ event, client, logger }) => {
     const threadTs = event.thread_ts ?? event.ts;
     const text = event.text.replace(/<@[A-Z0-9]+>/gi, "").trim();
-    const uid = await getBotUserId(client);
-    const isThread = !!event.thread_ts;
-    await handleUserMessage(
-      text,
-      event.channel,
-      threadTs,
-      isThread,
-      client,
-      logger,
-      uid
-    );
+    await handleUserMessage(text, event.channel, threadTs, client, logger);
   });
 
   app.message(async ({ message, client, logger }) => {
@@ -135,22 +76,33 @@ export function registerMessageListeners(app: App) {
     // Handle DMs
     if (message.channel_type === "im") {
       const threadTs = message.thread_ts ?? message.ts;
-      const isThread = !!message.thread_ts;
       await handleUserMessage(
         message.text,
         message.channel,
         threadTs,
-        isThread,
         client,
-        logger,
-        uid
+        logger
       );
       return;
     }
 
     // Handle thread replies in channels where bot previously responded
     if (message.thread_ts) {
-      // Check if bot has replied in this thread
+      // Fast check: if we have a contextId stored, bot was in this thread
+      const contextId = await getConversationId(message.thread_ts);
+      if (contextId) {
+        const text = message.text.replace(/<@[A-Z0-9]+>/gi, "").trim();
+        await handleUserMessage(
+          text,
+          message.channel,
+          message.thread_ts,
+          client,
+          logger
+        );
+        return;
+      }
+
+      // Fallback: check Slack thread for bot replies
       try {
         const replies = await client.conversations.replies({
           channel: message.channel,
@@ -166,10 +118,8 @@ export function registerMessageListeners(app: App) {
             text,
             message.channel,
             message.thread_ts,
-            true,
             client,
-            logger,
-            uid
+            logger
           );
         }
       } catch {
