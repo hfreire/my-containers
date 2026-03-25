@@ -11,6 +11,11 @@ const AGENT_NAME =
   process.env.AGENT_NAME ?? "espen-support-router-agent";
 const A2A_TIMEOUT = parseInt(process.env.A2A_TIMEOUT ?? "120000", 10);
 
+interface A2APart {
+  kind: string;
+  text?: string;
+}
+
 interface A2ARequest {
   jsonrpc: "2.0";
   id: string;
@@ -20,9 +25,7 @@ interface A2ARequest {
       role: "user";
       parts: Array<{ kind: "text"; text: string }>;
     };
-    configuration?: {
-      conversationId?: string;
-    };
+    contextId?: string;
   };
 }
 
@@ -30,14 +33,18 @@ interface A2AResponse {
   jsonrpc: "2.0";
   id: string;
   result?: {
-    status: {
+    artifacts?: Array<{ parts: A2APart[] }>;
+    contextId?: string;
+    status?: {
       state: string;
       message?: {
-        role: string;
-        parts: Array<{ kind: string; text?: string }>;
+        parts: A2APart[];
       };
     };
-    conversationId?: string;
+    history?: Array<{
+      role: string;
+      parts: A2APart[];
+    }>;
   };
   error?: {
     code: number;
@@ -65,7 +72,7 @@ export async function sendToAgent(
   };
 
   if (conversationId) {
-    body.params.configuration = { conversationId };
+    body.params.contextId = conversationId;
   }
 
   const response = await fetch(url, {
@@ -76,8 +83,9 @@ export async function sendToAgent(
   });
 
   if (!response.ok) {
+    const body = await response.text().catch(() => "");
     throw new Error(
-      `A2A request failed: ${response.status} ${response.statusText}`
+      `A2A request failed: ${response.status} ${response.statusText} ${body}`
     );
   }
 
@@ -87,16 +95,43 @@ export async function sendToAgent(
     throw new Error(`A2A error: ${data.error.message}`);
   }
 
-  const parts = data.result?.status?.message?.parts ?? [];
-  const responseText = parts
-    .filter((p) => p.kind === "text" && p.text)
-    .map((p) => p.text)
-    .join("\n");
+  const responseText = extractText(data);
 
   return {
     text: responseText || "No response from agent.",
-    conversationId: data.result?.conversationId,
+    conversationId: data.result?.contextId,
   };
+}
+
+function extractText(data: A2AResponse): string {
+  // Try artifacts first (kagent format)
+  const artifacts = data.result?.artifacts ?? [];
+  for (const artifact of artifacts) {
+    const texts = artifact.parts
+      .filter((p) => p.kind === "text" && p.text)
+      .map((p) => p.text!);
+    if (texts.length > 0) return texts.join("\n");
+  }
+
+  // Fall back to status.message.parts (standard A2A)
+  const parts = data.result?.status?.message?.parts ?? [];
+  const texts = parts
+    .filter((p) => p.kind === "text" && p.text)
+    .map((p) => p.text!);
+  if (texts.length > 0) return texts.join("\n");
+
+  // Fall back to last agent message in history
+  const history = data.result?.history ?? [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === "agent") {
+      const agentTexts = history[i].parts
+        .filter((p) => p.kind === "text" && p.text)
+        .map((p) => p.text!);
+      if (agentTexts.length > 0) return agentTexts.join("\n");
+    }
+  }
+
+  return "";
 }
 
 export async function streamToAgent(
