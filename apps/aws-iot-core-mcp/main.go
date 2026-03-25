@@ -38,6 +38,7 @@ func main() {
 		tools.RegisterPackages(server, clients)
 		tools.RegisterJobs(server, clients)
 		tools.RegisterMQTT(server, clients)
+		tools.RegisterBatch(server, clients)
 
 		return server
 	}
