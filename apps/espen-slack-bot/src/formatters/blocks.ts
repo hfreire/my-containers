@@ -7,9 +7,49 @@ interface SlackMessage {
 const SECTION_LIMIT = 3000;
 
 /**
+ * Convert a Markdown table to a Slack-friendly list format.
+ * Markdown tables are not supported in Slack mrkdwn.
+ */
+function convertTable(table: string): string {
+  const lines = table.trim().split("\n");
+  // Parse header row
+  const headers = lines[0]
+    .split("|")
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  // Skip separator row (line 1), parse data rows
+  const rows = lines.slice(2).map((line) =>
+    line
+      .split("|")
+      .map((c) => c.trim())
+      .filter(Boolean)
+  );
+
+  return rows
+    .map((row) =>
+      row
+        .map((cell, i) => {
+          const header = headers[i];
+          if (!header || !cell) return null;
+          return `• *${header}:* ${cell}`;
+        })
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n\n");
+}
+
+/**
  * Convert standard Markdown to Slack mrkdwn format.
  */
 function markdownToMrkdwn(text: string): string {
+  // Convert tables first (multi-line)
+  text = text.replace(
+    /^\|.+\|$\n^\|[-| :]+\|$\n(?:^\|.+\|$\n?)+/gm,
+    (match) => convertTable(match)
+  );
+
   return (
     text
       // Headers → bold text
