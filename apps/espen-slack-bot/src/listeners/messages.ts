@@ -24,6 +24,12 @@ async function handleUserMessage(
       await setConversationId(threadTs, response.conversationId);
     }
 
+    // Agent signals the message wasn't meant for it
+    if (response.text.trim() === "[SKIP]") {
+      await client.reactions.remove({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
+      return;
+    }
+
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
