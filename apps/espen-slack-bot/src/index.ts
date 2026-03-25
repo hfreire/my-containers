@@ -14,5 +14,9 @@ registerActionListeners(app);
 
 (async () => {
   await app.start();
+
+  // Set bot presence to "auto" so it shows with a green dot
+  await app.client.users.setPresence({ presence: "auto" });
+
   console.log("⚡ Espen Slack Bot is running (Socket Mode)");
 })();
