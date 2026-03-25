@@ -17,8 +17,16 @@ async function handleUserMessage(
   await client.reactions.add({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
 
   try {
+    const tz = process.env.TZ ?? "UTC";
+    const now = new Date().toLocaleString("sv-SE", {
+      timeZone: tz,
+      dateStyle: "full",
+      timeStyle: "long",
+    });
+    const prompt = `[Current time: ${now} (${tz})]\n\n${text.trim()}`;
+
     const contextId = await getConversationId(threadTs);
-    const response = await sendToAgent(text.trim(), contextId);
+    const response = await sendToAgent(prompt, contextId);
 
     if (response.conversationId) {
       await setConversationId(threadTs, response.conversationId);
