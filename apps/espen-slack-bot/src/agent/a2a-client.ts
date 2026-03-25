@@ -56,7 +56,7 @@ export async function sendToAgent(
   text: string,
   conversationId?: string
 ): Promise<AgentResponse> {
-  const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}`;
+  const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}/`;
   const requestId = crypto.randomUUID();
 
   const body: A2ARequest = {
@@ -139,7 +139,7 @@ export async function streamToAgent(
   conversationId: string | undefined,
   onChunk: (text: string) => void
 ): Promise<AgentResponse> {
-  const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}`;
+  const url = `${A2A_BASE_URL}/${AGENT_NAMESPACE}/${AGENT_NAME}/`;
   const requestId = crypto.randomUUID();
 
   const body = {
