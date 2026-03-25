@@ -7,37 +7,39 @@ async function handleUserMessage(
   text: string,
   channel: string,
   threadTs: string,
+  messageTs: string,
   client: any,
   logger: any
 ) {
   if (!text.trim()) return;
 
+  // React with eyes to indicate we're working on it
+  await client.reactions.add({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
+
   try {
-    const thinking = await client.chat.postMessage({
-      channel,
-      thread_ts: threadTs,
-      text: "🔍 Looking into this...",
-    });
-
-    // Look up existing contextId for this thread
     const contextId = await getConversationId(threadTs);
-
     const response = await sendToAgent(text.trim(), contextId);
 
-    // Store contextId for follow-ups
     if (response.conversationId) {
       await setConversationId(threadTs, response.conversationId);
     }
 
-    if (thinking.ts) {
-      await client.chat.update({
-        channel,
-        ts: thinking.ts,
-        ...formatAgentResponse(response.text),
-      });
-    }
+    await client.chat.postMessage({
+      channel,
+      thread_ts: threadTs,
+      ...formatAgentResponse(response.text),
+    });
+
+    // Replace eyes with green check
+    await client.reactions.remove({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
+    await client.reactions.add({ channel, timestamp: messageTs, name: "white_check_mark" }).catch(() => {});
   } catch (error) {
     logger.error("Error handling message", error);
+
+    // Replace eyes with red cross
+    await client.reactions.remove({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
+    await client.reactions.add({ channel, timestamp: messageTs, name: "x" }).catch(() => {});
+
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
@@ -64,7 +66,7 @@ export function registerMessageListeners(app: App) {
   app.event("app_mention", async ({ event, client, logger }) => {
     const threadTs = event.thread_ts ?? event.ts;
     const text = event.text.replace(/<@[A-Z0-9]+>/gi, "").trim();
-    await handleUserMessage(text, event.channel, threadTs, client, logger);
+    await handleUserMessage(text, event.channel, threadTs, event.ts, client, logger);
   });
 
   app.message(async ({ message, client, logger }) => {
@@ -80,6 +82,7 @@ export function registerMessageListeners(app: App) {
         message.text,
         message.channel,
         threadTs,
+        message.ts,
         client,
         logger
       );
@@ -96,6 +99,7 @@ export function registerMessageListeners(app: App) {
           text,
           message.channel,
           message.thread_ts,
+          message.ts,
           client,
           logger
         );
@@ -118,6 +122,7 @@ export function registerMessageListeners(app: App) {
             text,
             message.channel,
             message.thread_ts,
+            message.ts,
             client,
             logger
           );
