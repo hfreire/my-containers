@@ -14,8 +14,9 @@ import (
 )
 
 type SearchArgs struct {
-	Query string `json:"query" jsonschema:"description:Natural language query to search the knowledge base"`
-	TopK  int    `json:"top_k,omitempty" jsonschema:"description:Number of results to return (default 5, max 10)"`
+	Query        string `json:"query" jsonschema:"description:Natural language query to search the knowledge base"`
+	TopK         int    `json:"top_k,omitempty" jsonschema:"description:Number of results to return (default 5, max 10)"`
+	Manufacturer string `json:"manufacturer,omitempty" jsonschema:"description:Filter results by inverter manufacturer (e.g. solis, growatt, fox, deye, fronius, goodwe, sungrow, solinteg, alpsolarr, hiconics, sigenergy, solaredge)"`
 }
 
 type KnowledgeDeps struct {
@@ -43,7 +44,16 @@ func RegisterKnowledge(server *mcp.Server, deps *KnowledgeDeps) {
 			return textResult(fmt.Sprintf("Error generating embedding: %v", err)), nil, nil
 		}
 
-		results, err := deps.Qdrant.Search(ctx, vector, topK)
+		var filter *qdrant.Filter
+		if args.Manufacturer != "" {
+			filter = &qdrant.Filter{
+				Must: []qdrant.Condition{
+					{Key: "manufacturer", Match: &qdrant.Match{Value: args.Manufacturer}},
+				},
+			}
+		}
+
+		results, err := deps.Qdrant.Search(ctx, vector, topK, filter)
 		if err != nil {
 			return textResult(fmt.Sprintf("Error searching knowledge base: %v", err)), nil, nil
 		}

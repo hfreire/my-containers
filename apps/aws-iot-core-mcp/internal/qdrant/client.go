@@ -23,10 +23,24 @@ type SearchResult struct {
 	Payload map[string]any `json:"payload"`
 }
 
+type Match struct {
+	Value string `json:"value"`
+}
+
+type Condition struct {
+	Key   string `json:"key"`
+	Match *Match `json:"match,omitempty"`
+}
+
+type Filter struct {
+	Must []Condition `json:"must,omitempty"`
+}
+
 type searchRequest struct {
 	Vector      []float64 `json:"vector"`
 	Limit       int       `json:"limit"`
 	WithPayload bool      `json:"with_payload"`
+	Filter      *Filter   `json:"filter,omitempty"`
 }
 
 type searchResponse struct {
@@ -46,11 +60,12 @@ func NewClient(baseURL, apiKey, collection string) *Client {
 	}
 }
 
-func (c *Client) Search(ctx context.Context, vector []float64, topK int) ([]SearchResult, error) {
+func (c *Client) Search(ctx context.Context, vector []float64, topK int, filter *Filter) ([]SearchResult, error) {
 	body, err := json.Marshal(searchRequest{
 		Vector:      vector,
 		Limit:       topK,
 		WithPayload: true,
+		Filter:      filter,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal search request: %w", err)
