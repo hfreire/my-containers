@@ -38,11 +38,32 @@ async function handleUserMessage(
       return;
     }
 
+    // Split response into answer and sources
+    const sourcesSeparator = "[SOURCES]";
+    const separatorIndex = response.text.indexOf(sourcesSeparator);
+    let answer = response.text;
+    let sources = "";
+
+    if (separatorIndex !== -1) {
+      answer = response.text.slice(0, separatorIndex).trim();
+      sources = response.text.slice(separatorIndex + sourcesSeparator.length).trim();
+    }
+
+    // Post the formatted answer
     await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      ...formatAgentResponse(response.text),
+      ...formatAgentResponse(answer),
     });
+
+    // Post sources as a follow-up thread reply
+    if (sources) {
+      await client.chat.postMessage({
+        channel,
+        thread_ts: threadTs,
+        text: `_Sources:_\n\`\`\`${sources}\`\`\``,
+      });
+    }
 
     // Replace eyes with green check
     await client.reactions.remove({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
