@@ -54,16 +54,16 @@ function markdownToMrkdwn(text: string): string {
     text
       // Headers → bold text
       .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
-      // Bold: **text** or __text__ → *text*
-      .replace(/\*\*(.+?)\*\*/g, "*$1*")
-      .replace(/__(.+?)__/g, "*$1*")
+      // Bold: **text** or __text__ → *text* (including multi-line)
+      .replace(/\*\*([\s\S]+?)\*\*/g, "*$1*")
+      .replace(/__([\s\S]+?)__/g, "*$1*")
       // Italic: *text* (single) is already mrkdwn — but _text_ also works
       // Links: [text](url) → <url|text>
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "<$2|$1>")
       // Images: ![alt](url) → <url|alt>
       .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "<$2|$1>")
       // Strikethrough: ~~text~~ → ~text~
-      .replace(/~~(.+?)~~/g, "~$1~")
+      .replace(/~~([\s\S]+?)~~/g, "~$1~")
       // Horizontal rules
       .replace(/^[-*_]{3,}$/gm, "───")
   );
