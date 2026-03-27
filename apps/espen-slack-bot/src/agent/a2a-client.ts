@@ -13,6 +13,9 @@ export interface AgentResponse {
 const A2A_BASE_URL =
   process.env.A2A_BASE_URL ??
   "http://kagent-controller.ai:8083/api/a2a";
+const KAGENT_API_BASE_URL =
+  process.env.KAGENT_API_BASE_URL ??
+  A2A_BASE_URL.replace(/\/api\/a2a$/, "/api");
 const AGENT_NAMESPACE = process.env.AGENT_NAMESPACE ?? "default";
 const AGENT_NAME =
   process.env.AGENT_NAME ?? "espen-support-router-agent";
@@ -129,10 +132,15 @@ export async function sendToAgent(
     throw new Error(`A2A error: ${data.error.message}`);
   }
 
+  // Extract session ID for aggregated usage query
+  const sessionId = (data.result?.metadata as Record<string, unknown>)
+    ?.kagent_session_id as string | undefined;
+  const usage = await fetchSessionUsage(sessionId);
+
   return {
     text: extractText(data) || "No response from agent.",
     conversationId: data.result?.contextId,
-    usage: extractUsage(data),
+    usage,
   };
 }
 
@@ -192,51 +200,87 @@ function extractPartsText(parts: A2APart[]): string {
     .join("\n");
 }
 
-function extractUsage(data: A2AResponse): AgentUsage | undefined {
-  const result = data.result;
-  if (!result) return undefined;
+/**
+ * Fetch aggregated token usage across all tasks in a session (router + specialists).
+ * Uses the kagent controller REST API: GET /api/sessions/{id}/tasks
+ *
+ * Usage is found in two places:
+ * 1. History message metadata.kagent_usage_metadata — each agent LLM turn
+ * 2. History function_response parts: data.response.kagent_usage_metadata — sub-agent totals
+ */
+async function fetchSessionUsage(
+  sessionId: string | undefined
+): Promise<AgentUsage | undefined> {
+  if (!sessionId) return undefined;
 
-  // Collect usage from all history messages (each agent turn reports its own usage)
-  let promptTokens = 0;
-  let completionTokens = 0;
-  let totalTokens = 0;
-  let found = false;
+  try {
+    const res = await fetch(
+      `${KAGENT_API_BASE_URL}/sessions/${sessionId}/tasks`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return undefined;
 
-  const messages: Array<Record<string, unknown>> = [];
+    const body = (await res.json()) as { data?: Array<Record<string, unknown>> };
+    const tasks = body.data ?? [];
 
-  if (result.kind === "task") {
-    const task = result as A2ATaskResult;
-    for (const msg of task.history ?? []) {
-      messages.push(msg as unknown as Record<string, unknown>);
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let totalTokens = 0;
+    let found = false;
+
+    for (const task of tasks) {
+      const history = (task.history as Array<Record<string, unknown>>) ?? [];
+
+      for (const msg of history) {
+        // 1. Agent turn usage (on message metadata)
+        const meta = msg.metadata as Record<string, unknown> | undefined;
+        const msgUsage = meta?.kagent_usage_metadata as
+          | Record<string, unknown>
+          | undefined;
+        if (msgUsage) {
+          found = true;
+          addUsage(msgUsage);
+        }
+
+        // 2. Sub-agent usage (in function_response parts)
+        const parts = (msg.parts as Array<Record<string, unknown>>) ?? [];
+        for (const part of parts) {
+          const partMeta = part.metadata as Record<string, unknown> | undefined;
+          if (partMeta?.kagent_type !== "function_response") continue;
+
+          const data = part.data as Record<string, unknown> | undefined;
+          const response = data?.response as Record<string, unknown> | undefined;
+          const subUsage = response?.kagent_usage_metadata as
+            | Record<string, unknown>
+            | undefined;
+          if (subUsage) {
+            found = true;
+            addUsage(subUsage);
+          }
+        }
+      }
     }
+
+    function addUsage(usage: Record<string, unknown>) {
+      if (typeof usage.promptTokenCount === "number")
+        promptTokens += usage.promptTokenCount;
+      if (typeof usage.candidatesTokenCount === "number")
+        completionTokens += usage.candidatesTokenCount;
+      if (typeof usage.totalTokenCount === "number")
+        totalTokens += usage.totalTokenCount;
+    }
+
+    if (!found) return undefined;
+
+    return {
+      promptTokens: promptTokens || undefined,
+      completionTokens: completionTokens || undefined,
+      totalTokens: totalTokens || undefined,
+    };
+  } catch {
+    // Non-fatal — fall back to no usage data
+    return undefined;
   }
-
-  // Include top-level result metadata only if history is empty (avoid double-counting)
-  if (messages.length === 0 && result.metadata) {
-    messages.push({ metadata: result.metadata });
-  }
-
-  for (const msg of messages) {
-    const meta = msg.metadata as Record<string, unknown> | undefined;
-    const usage = meta?.kagent_usage_metadata as Record<string, unknown> | undefined;
-    if (!usage) continue;
-
-    found = true;
-    if (typeof usage.promptTokenCount === "number")
-      promptTokens += usage.promptTokenCount;
-    if (typeof usage.candidatesTokenCount === "number")
-      completionTokens += usage.candidatesTokenCount;
-    if (typeof usage.totalTokenCount === "number")
-      totalTokens += usage.totalTokenCount;
-  }
-
-  if (!found) return undefined;
-
-  return {
-    promptTokens: promptTokens || undefined,
-    completionTokens: completionTokens || undefined,
-    totalTokens: totalTokens || undefined,
-  };
 }
 
 export async function streamToAgent(
