@@ -2,6 +2,7 @@ import { Redis } from "ioredis";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://dragonfly.databases:6379";
 const KEY_PREFIX = "espen-slack-bot:thread:";
+const SOURCES_PREFIX = "espen-slack-bot:sources:";
 const TTL_SECONDS = 60 * 60 * 24; // 24 hours
 
 let redis: Redis | null = null;
@@ -41,5 +42,39 @@ export async function setConversationId(
     );
   } catch {
     // Non-fatal — conversation continuity degrades gracefully
+  }
+}
+
+export interface StoredMessageData {
+  answer: string;
+  sources: string;
+  stats?: Record<string, unknown>;
+}
+
+export async function getMessageData(
+  messageTs: string
+): Promise<StoredMessageData | undefined> {
+  try {
+    const value = await getRedis().get(`${SOURCES_PREFIX}${messageTs}`);
+    if (!value) return undefined;
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function setMessageData(
+  messageTs: string,
+  data: StoredMessageData
+): Promise<void> {
+  try {
+    await getRedis().set(
+      `${SOURCES_PREFIX}${messageTs}`,
+      JSON.stringify(data),
+      "EX",
+      TTL_SECONDS
+    );
+  } catch {
+    // Non-fatal
   }
 }

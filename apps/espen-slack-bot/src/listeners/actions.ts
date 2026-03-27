@@ -1,6 +1,6 @@
 import type { App } from "@slack/bolt";
 import { sendToAgent } from "../agent/a2a-client.js";
-import { getConversationId } from "../state/threads.js";
+import { getConversationId, getMessageData } from "../state/threads.js";
 import { formatAgentResponse } from "../formatters/blocks.js";
 
 export function registerActionListeners(app: App) {
@@ -56,5 +56,33 @@ export function registerActionListeners(app: App) {
       thread_ts: threadTs,
       text: "❌ Action cancelled.",
     });
+  });
+
+  app.action("show_sources", async ({ ack, body, client, logger }) => {
+    await ack();
+
+    if (body.type !== "block_actions" || !body.message) return;
+
+    const channel = body.channel?.id;
+    const messageTs = body.message.ts;
+    if (!channel || !messageTs) return;
+
+    try {
+      const data = await getMessageData(messageTs);
+      if (!data) return;
+
+      // Update the message with sources expanded, preserving stats
+      await client.chat.update({
+        channel,
+        ts: messageTs,
+        ...formatAgentResponse(data.answer, {
+          sources: data.sources,
+          expandSources: true,
+          stats: data.stats as any,
+        }),
+      });
+    } catch (error) {
+      logger.error("Error showing sources", error);
+    }
   });
 }

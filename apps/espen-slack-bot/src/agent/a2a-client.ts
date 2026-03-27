@@ -1,6 +1,13 @@
+export interface AgentUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
 export interface AgentResponse {
   text: string;
   conversationId?: string;
+  usage?: AgentUsage;
 }
 
 const A2A_BASE_URL =
@@ -125,6 +132,7 @@ export async function sendToAgent(
   return {
     text: extractText(data) || "No response from agent.",
     conversationId: data.result?.contextId,
+    usage: extractUsage(data),
   };
 }
 
@@ -182,6 +190,53 @@ function extractPartsText(parts: A2APart[]): string {
     .filter((p) => p.kind === "text" && p.text)
     .map((p) => p.text!)
     .join("\n");
+}
+
+function extractUsage(data: A2AResponse): AgentUsage | undefined {
+  const result = data.result;
+  if (!result) return undefined;
+
+  // Collect usage from all history messages (each agent turn reports its own usage)
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let totalTokens = 0;
+  let found = false;
+
+  const messages: Array<Record<string, unknown>> = [];
+
+  if (result.kind === "task") {
+    const task = result as A2ATaskResult;
+    for (const msg of task.history ?? []) {
+      messages.push(msg as unknown as Record<string, unknown>);
+    }
+  }
+
+  // Include top-level result metadata only if history is empty (avoid double-counting)
+  if (messages.length === 0 && result.metadata) {
+    messages.push({ metadata: result.metadata });
+  }
+
+  for (const msg of messages) {
+    const meta = msg.metadata as Record<string, unknown> | undefined;
+    const usage = meta?.kagent_usage_metadata as Record<string, unknown> | undefined;
+    if (!usage) continue;
+
+    found = true;
+    if (typeof usage.promptTokenCount === "number")
+      promptTokens += usage.promptTokenCount;
+    if (typeof usage.candidatesTokenCount === "number")
+      completionTokens += usage.candidatesTokenCount;
+    if (typeof usage.totalTokenCount === "number")
+      totalTokens += usage.totalTokenCount;
+  }
+
+  if (!found) return undefined;
+
+  return {
+    promptTokens: promptTokens || undefined,
+    completionTokens: completionTokens || undefined,
+    totalTokens: totalTokens || undefined,
+  };
 }
 
 export async function streamToAgent(

@@ -1,6 +1,6 @@
 import type { App } from "@slack/bolt";
 import { sendToAgent } from "../agent/a2a-client.js";
-import { getConversationId, setConversationId } from "../state/threads.js";
+import { getConversationId, setConversationId, setMessageData } from "../state/threads.js";
 import { formatAgentResponse } from "../formatters/blocks.js";
 
 async function handleUserMessage(
@@ -17,6 +17,8 @@ async function handleUserMessage(
   await client.reactions.add({ channel, timestamp: messageTs, name: "eyes" }).catch(() => {});
 
   try {
+    const startTime = Date.now();
+
     const tz = process.env.TZ ?? "UTC";
     const now = new Date().toLocaleString("sv-SE", {
       timeZone: tz,
@@ -28,6 +30,8 @@ async function handleUserMessage(
     const contextId = await getConversationId(threadTs);
     const response = await sendToAgent(prompt, contextId);
 
+    const durationMs = Date.now() - startTime;
+
     if (response.conversationId) {
       await setConversationId(threadTs, response.conversationId);
     }
@@ -38,7 +42,7 @@ async function handleUserMessage(
       return;
     }
 
-    // Split response into answer and sources
+    // Split response into answer and sources, format as a single message
     const sourcesSeparator = "[SOURCES]";
     const separatorIndex = response.text.indexOf(sourcesSeparator);
     let answer = response.text;
@@ -49,19 +53,31 @@ async function handleUserMessage(
       sources = response.text.slice(separatorIndex + sourcesSeparator.length).trim();
     }
 
-    // Post the formatted answer
-    await client.chat.postMessage({
+    const posted = await client.chat.postMessage({
       channel,
       thread_ts: threadTs,
-      ...formatAgentResponse(answer),
+      ...formatAgentResponse(answer, {
+        sources,
+        stats: {
+          durationMs,
+          promptTokens: response.usage?.promptTokens,
+          completionTokens: response.usage?.completionTokens,
+          totalTokens: response.usage?.totalTokens,
+        },
+      }),
     });
 
-    // Post sources as a follow-up thread reply
-    if (sources) {
-      await client.chat.postMessage({
-        channel,
-        thread_ts: threadTs,
-        text: `_Sources:_\n\`\`\`${sources}\`\`\``,
+    // Store answer + sources + stats in Redis so the "Show sources" button can preserve them
+    if (sources && posted.ts) {
+      await setMessageData(posted.ts, {
+        answer,
+        sources,
+        stats: {
+          durationMs,
+          promptTokens: response.usage?.promptTokens,
+          completionTokens: response.usage?.completionTokens,
+          totalTokens: response.usage?.totalTokens,
+        },
       });
     }
 
