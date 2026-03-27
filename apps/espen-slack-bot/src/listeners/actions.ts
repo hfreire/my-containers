@@ -85,4 +85,43 @@ export function registerActionListeners(app: App) {
       logger.error("Error showing sources", error);
     }
   });
+
+  app.action("response_feedback", async ({ ack, body, client, logger }) => {
+    await ack();
+
+    if (body.type !== "block_actions" || !body.actions?.[0]) return;
+
+    const action = body.actions[0] as any;
+    const feedback = action.value as string; // "positive" or "negative"
+    const userId = body.user?.id;
+    const channel = body.channel?.id;
+    const messageTs = body.message?.ts;
+    const threadTs = (body.message as any)?.thread_ts ?? messageTs;
+
+    let permalink: string | undefined;
+    if (channel && threadTs) {
+      try {
+        const res = await client.chat.getPermalink({
+          channel,
+          message_ts: threadTs,
+        });
+        permalink = res.permalink;
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    console.log(
+      JSON.stringify({
+        event: "response_feedback",
+        feedback,
+        userId,
+        channel,
+        messageTs,
+        threadTs,
+        permalink,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  });
 }

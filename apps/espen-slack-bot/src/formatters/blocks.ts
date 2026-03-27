@@ -474,6 +474,27 @@ export function formatAgentResponse(
     }
   }
 
+  // Feedback buttons (context_actions)
+  blocks.push({
+    type: "context_actions",
+    elements: [
+      {
+        type: "feedback_buttons",
+        action_id: "response_feedback",
+        positive_button: {
+          text: { type: "plain_text", text: "\ud83d\udc4d" },
+          value: "positive",
+          accessibility_label: "Mark this response as helpful",
+        },
+        negative_button: {
+          text: { type: "plain_text", text: "\ud83d\udc4e" },
+          value: "negative",
+          accessibility_label: "Mark this response as not helpful",
+        },
+      },
+    ],
+  });
+
   const fallback = markdownToMrkdwn(text);
   return { text: fallback, blocks };
 }
