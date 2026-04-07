@@ -6,11 +6,7 @@ variable "VERSION" {
 }
 
 variable "REGISTRY" {
-  default = "ghcr.io"
-}
-
-variable "OWNER" {
-  default = "hfreire"
+  default = "zot.k8s1.se.home"
 }
 
 variable "APP" {
@@ -32,8 +28,8 @@ target "image" {
     VERSION = VERSION
   }
   tags = [
-    "${REGISTRY}/${OWNER}/${APP}:${VERSION}",
-    "${REGISTRY}/${OWNER}/${APP}:rolling",
+    "${REGISTRY}/${APP}:${VERSION}",
+    "${REGISTRY}/${APP}:latest",
   ]
   labels = {
     "org.opencontainers.image.source"  = SOURCE
