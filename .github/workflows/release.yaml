@@ -34,6 +34,7 @@ jobs:
             CHANGED=$(git diff --name-only HEAD~1 HEAD -- apps/ \
               | cut -d'/' -f2 \
               | sort -u \
+              | while read -r app; do [ -d "apps/$app" ] && echo "$app"; done \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
             echo "apps=${CHANGED}" >> "$GITHUB_OUTPUT"
           fi
